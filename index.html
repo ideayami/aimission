@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=no">
   <title>2Dシューティングゲーム</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -36,8 +36,18 @@
         <p class="restart-hint">[スペースキー] でもリスタート</p>
       </div>
     </div>
+    <!-- モバイル用オン画面タッチコントロール -->
+    <div class="touch-controls" id="touchControls">
+      <div class="touch-move-group">
+        <button type="button" class="touch-btn" id="touchLeft" aria-label="左移動">◀</button>
+        <button type="button" class="touch-btn" id="touchRight" aria-label="右移動">▶</button>
+      </div>
+      <div class="touch-action-group">
+        <button type="button" class="touch-btn touch-btn-action" id="touchShoot" aria-label="弾発射">SHOT</button>
+      </div>
+    </div>
     <div class="instructions">
-      <p>操作方法: [矢印キー] / [WASD] で移動 | [スペースキー] で発射 | [P] で一時停止</p>
+      <p>操作方法: [矢印キー] / [WASD] / [画面ボタン] で移動 | [スペースキー] / [SHOT] で発射 | [P] で一時停止</p>
     </div>
   </div>
   <script src="game.js"></script>

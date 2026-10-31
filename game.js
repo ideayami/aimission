@@ -15,6 +15,11 @@ const pauseButton = document.getElementById("pauseButton");
 const pauseScreen = document.getElementById("pauseScreen");
 const resumeButton = document.getElementById("resumeButton");
 
+// タッチ操作用UI要素の取得
+const touchLeft = document.getElementById("touchLeft");
+const touchRight = document.getElementById("touchRight");
+const touchShoot = document.getElementById("touchShoot");
+
 // ローカルストレージキー定義
 const HIGH_SCORE_STORAGE_KEY = "space_shooter_high_score";
 
@@ -297,6 +302,56 @@ window.addEventListener("keyup", (e) => {
   }
 });
 
+/**
+ * オン画面タッチコントロールのイベント設定
+ * @param {HTMLElement} element - 対象のボタン要素
+ * @param {string} keyCode - keysオブジェクトに対応するキー名
+ */
+function setupTouchButton(element, keyCode) {
+  if (!element) return;
+
+  const press = (e) => {
+    e.preventDefault();
+    initAudio();
+
+    if (isPaused) return;
+
+    // ゲームオーバー・ゲームクリア・未開始時のリスタート/スタート対応
+    if (keyCode === "Space" && (!gameStarted || isGameOver || isGameClear)) {
+      if (!gameStarted) {
+        startGame();
+      } else {
+        restartGame();
+      }
+      return;
+    }
+
+    keys[keyCode] = true;
+    element.classList.add("active");
+  };
+
+  const release = (e) => {
+    e.preventDefault();
+    keys[keyCode] = false;
+    element.classList.remove("active");
+  };
+
+  // タッチイベント設定
+  element.addEventListener("touchstart", press, { passive: false });
+  element.addEventListener("touchend", release, { passive: false });
+  element.addEventListener("touchcancel", release, { passive: false });
+
+  // マウス操作でも確認・操作できるように設定
+  element.addEventListener("mousedown", press);
+  element.addEventListener("mouseup", release);
+  element.addEventListener("mouseleave", release);
+}
+
+// タッチボタンの初期化
+setupTouchButton(touchLeft, "ArrowLeft");
+setupTouchButton(touchRight, "ArrowRight");
+setupTouchButton(touchShoot, "Space");
+
 // スタートボタンクリックイベント
 startButton.addEventListener("click", () => {
   startGame();
@@ -546,7 +601,7 @@ function update(currentTime) {
   player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
   player.y = Math.max(0, Math.min(canvas.height - player.height, player.y));
 
-  // スペースキー押下時の弾発射
+  // スペースキーまたはSHOTボタン押下時の弾発射
   if (keys.Space) {
     shootBullet(currentTime);
   }
