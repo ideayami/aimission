@@ -59,3 +59,6 @@ PM: DONE（完了宣言）
 - 結果: 承認
 - 変更: game.js
 - 種別: 改善
+
+## Round 13
+PM: DONE（完了宣言）
