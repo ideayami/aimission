@@ -4,6 +4,7 @@ const ctx = canvas.getContext("2d");
 
 // UI要素の取得
 const gameOverScreen = document.getElementById("gameOverScreen");
+const gameOverTitle = document.getElementById("gameOverTitle");
 const finalScoreElement = document.getElementById("finalScore");
 const restartButton = document.getElementById("restartButton");
 
@@ -23,8 +24,8 @@ const keys = {
 // キー押下イベント
 window.addEventListener("keydown", (e) => {
   if (e.code in keys) {
-    // ゲームオーバー時はスペースキーでリスタートできるようにする
-    if (e.code === "Space" && isGameOver) {
+    // ゲームオーバーまたはゲームクリア時はスペースキーでリスタートできるようにする
+    if (e.code === "Space" && (isGameOver || isGameClear)) {
       e.preventDefault();
       restartGame();
       return;
@@ -53,6 +54,11 @@ restartButton.addEventListener("click", () => {
 // ゲームの状態管理変数
 let score = 0;
 let isGameOver = false;
+let isGameClear = false;
+
+// ボス戦関連定数・変数
+const BOSS_SPAWN_SCORE = 1000;
+let boss = null; // ボスが存在しない場合は null
 
 // 自機（プレイヤー）オブジェクトの初期設定
 const player = {
@@ -81,6 +87,8 @@ let lastEnemySpawnTime = 0;
 function restartGame() {
   score = 0;
   isGameOver = false;
+  isGameClear = false;
+  boss = null;
   player.x = canvas.width / 2 - 16;
   player.y = canvas.height - 60;
   bullets = [];
@@ -107,9 +115,11 @@ function shootBullet(currentTime) {
 }
 
 /**
- * 敵を生成する
+ * 敵を生成する（ボス出現スコア未満のときのみ）
  */
 function spawnEnemy(currentTime) {
+  if (score >= BOSS_SPAWN_SCORE || boss !== null) return;
+
   if (currentTime - lastEnemySpawnTime >= ENEMY_SPAWN_INTERVAL) {
     const enemyWidth = 30;
     const enemyHeight = 30;
@@ -122,6 +132,26 @@ function spawnEnemy(currentTime) {
       speed: 2 + Math.random() * 1.5,
     });
     lastEnemySpawnTime = currentTime;
+  }
+}
+
+/**
+ * ボスを出現させる
+ */
+function spawnBoss() {
+  if (boss === null && score >= BOSS_SPAWN_SCORE && !isGameClear && !isGameOver) {
+    boss = {
+      x: canvas.width / 2 - 50,
+      y: 50,
+      width: 100,
+      height: 50,
+      speed: 2,
+      direction: 1, // 1: 右向き, -1: 左向き
+      hp: 30,
+      maxHp: 30,
+    };
+    // 既存の通常の敵をクリアする
+    enemies = [];
   }
 }
 
@@ -142,6 +172,19 @@ function checkCollision(rect1, rect2) {
  */
 function triggerGameOver() {
   isGameOver = true;
+  gameOverTitle.textContent = "GAME OVER";
+  gameOverTitle.style.color = "#ff4757";
+  finalScoreElement.textContent = score;
+  gameOverScreen.classList.remove("hidden");
+}
+
+/**
+ * ゲームクリア処理
+ */
+function triggerGameClear() {
+  isGameClear = true;
+  gameOverTitle.textContent = "STAGE CLEAR!";
+  gameOverTitle.style.color = "#66fcf1";
   finalScoreElement.textContent = score;
   gameOverScreen.classList.remove("hidden");
 }
@@ -150,7 +193,7 @@ function triggerGameOver() {
  * ゲーム状態の更新
  */
 function update(currentTime) {
-  if (isGameOver) return;
+  if (isGameOver || isGameClear) return;
 
   // プレイヤー移動（左右）
   if (keys.ArrowLeft || keys.KeyA) {
@@ -185,10 +228,12 @@ function update(currentTime) {
     }
   }
 
-  // 敵の生成
+  // ボス出現チェック
+  spawnBoss();
+
+  // 通常の敵の生成と移動
   spawnEnemy(currentTime);
 
-  // 敵の移動と画面外判定（敵が画面下部を通過した場合はゲームオーバー）
   for (let i = enemies.length - 1; i >= 0; i--) {
     const enemy = enemies[i];
     enemy.y += enemy.speed;
@@ -198,7 +243,19 @@ function update(currentTime) {
     }
   }
 
-  // 弾と敵の当たり判定処理
+  // ボスの移動処理（左右往復）
+  if (boss !== null) {
+    boss.x += boss.speed * boss.direction;
+    if (boss.x <= 10) {
+      boss.x = 10;
+      boss.direction = 1;
+    } else if (boss.x + boss.width >= canvas.width - 10) {
+      boss.x = canvas.width - 10 - boss.width;
+      boss.direction = -1;
+    }
+  }
+
+  // 弾と通常敵の当たり判定処理
   for (let i = enemies.length - 1; i >= 0; i--) {
     const enemy = enemies[i];
     let enemyDestroyed = false;
@@ -206,7 +263,6 @@ function update(currentTime) {
     for (let j = bullets.length - 1; j >= 0; j--) {
       const bullet = bullets[j];
       if (checkCollision(enemy, bullet)) {
-        // 当たった敵と弾を両方削除し、スコア加算
         enemies.splice(i, 1);
         bullets.splice(j, 1);
         score += 100;
@@ -215,10 +271,39 @@ function update(currentTime) {
       }
     }
 
-    if (enemyDestroyed) continue;
+    if (enemyDestroyed) {
+      // 撃破時にボス出現スコアに達したか確認
+      spawnBoss();
+      continue;
+    }
 
-    // プレイヤーと敵の当たり判定処理
+    // プレイヤーと通常敵の当たり判定処理
     if (checkCollision(player, enemy)) {
+      triggerGameOver();
+      return;
+    }
+  }
+
+  // 弾とボスの当たり判定処理
+  if (boss !== null) {
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const bullet = bullets[j];
+      if (checkCollision(boss, bullet)) {
+        bullets.splice(j, 1);
+        boss.hp -= 1;
+        score += 20; // ボスにダメージを与えた時のスコア加算
+
+        if (boss.hp <= 0) {
+          score += 500; // ボス撃破ボーナス
+          boss = null;
+          triggerGameClear();
+          return;
+        }
+      }
+    }
+
+    // プレイヤーとボスの当たり判定処理
+    if (checkCollision(player, boss)) {
       triggerGameOver();
       return;
     }
@@ -269,6 +354,45 @@ function draw() {
     ctx.lineTo(enemy.x + enemy.width / 2, enemy.y + enemy.height);
     ctx.closePath();
     ctx.fill();
+  }
+
+  // ボスの描画
+  if (boss !== null) {
+    ctx.fillStyle = "#c56cf0";
+    ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
+
+    // ボスのコックピット／コア装飾
+    ctx.fillStyle = "#ff4757";
+    ctx.beginPath();
+    ctx.arc(
+      boss.x + boss.width / 2,
+      boss.y + boss.height / 2,
+      12,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+
+    // ボスHPバーの描画
+    const barWidth = 120;
+    const barHeight = 10;
+    const barX = canvas.width / 2 - barWidth / 2;
+    const barY = 15;
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+
+    const currentBarWidth = (barWidth * boss.hp) / boss.maxHp;
+    ctx.fillStyle = "#ff4757";
+    ctx.fillRect(barX, barY, currentBarWidth, barHeight);
+
+    ctx.strokeStyle = "#ffffff";
+    ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("BOSS", canvas.width / 2, barY + barHeight + 14);
   }
 
   // スコア表示（UI）
