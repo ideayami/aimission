@@ -29,3 +29,9 @@ PM: DONE（完了宣言）
 
 ## Round 7
 PM: DONE（完了宣言）
+
+## Round 8
+- タスク: ローカルストレージを使用したハイスコア（最高得点）の保存と表示機能の追加
+- 結果: 承認
+- 変更: .team_state.json, README.md, game.js, index.html
+- 種別: 改善
