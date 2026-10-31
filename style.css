@@ -1,0 +1,39 @@
+/* 全体スタイル */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #1a1a24;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ゲームキャンバス */
+#gameCanvas {
+  background-color: #0b0c10;
+  border: 2px solid #45a29e;
+  border-radius: 4px;
+  box-shadow: 0 0 20px rgba(69, 162, 158, 0.4);
+  display: block;
+}
+
+/* 操作説明テキスト */
+.instructions {
+  font-size: 14px;
+  color: #c5c6c7;
+  text-align: center;
+}
