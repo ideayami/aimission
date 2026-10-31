@@ -41,3 +41,9 @@ PM: DONE（完了宣言）
 - 結果: 承認
 - 変更: game.js, index.html, style.css
 - 種別: 改善
+
+## Round 10
+- タスク: モバイル端末向けオン画面タッチコントロール（仮想パッド）の追加
+- 結果: 承認
+- 変更: game.js, index.html, style.css
+- 種別: 改善
