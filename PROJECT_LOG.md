@@ -35,3 +35,9 @@ PM: DONE（完了宣言）
 - 結果: 承認
 - 変更: .team_state.json, README.md, game.js, index.html
 - 種別: 改善
+
+## Round 9
+- タスク: プレイ中のポーズ（一時停止）機能の追加（Pキーまたは一時停止ボタンによるトグル）
+- 結果: 承認
+- 変更: game.js, index.html, style.css
+- 種別: 改善
