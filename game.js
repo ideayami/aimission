@@ -210,6 +210,15 @@ const keys = {
   Space: false,
 };
 
+/**
+ * 全てのキー入力状態をリセットする
+ */
+function resetKeys() {
+  for (const k in keys) {
+    keys[k] = false;
+  }
+}
+
 // ゲームの状態管理変数
 let gameStarted = false;
 let isPaused = false;
@@ -419,7 +428,7 @@ function startGame() {
 }
 
 /**
- * ゲームを初期状態にリセットして再開する
+ * ゲームを初期状態にリセットして再開する（残存物・タイマー完全クリア）
  */
 function restartGame() {
   initAudio();
@@ -430,14 +439,23 @@ function restartGame() {
   hasPowerUpTriggered = false;
   powerUpBannerTimer = 0;
   boss = null;
-  player.x = canvas.width / 2 - 16;
+  
+  // 自機位置のリセット
+  player.x = canvas.width / 2 - player.width / 2;
   player.y = canvas.height - 60;
-  bullets = [];
-  enemies = [];
-  particles = [];
+
+  // 残存するエンティティ配列を完全に空にクリア
+  bullets.length = 0;
+  enemies.length = 0;
+  particles.length = 0;
+
+  // キー状態とタイマーの完全初期化
+  resetKeys();
+  gameStartTime = performance.now();
   lastShootTime = 0;
   lastEnemySpawnTime = 0;
-  gameStartTime = performance.now();
+
+  // UI画面の非表示・初期化
   gameOverScreen.classList.add("hidden");
   if (pauseScreen) pauseScreen.classList.add("hidden");
   if (pauseButton) pauseButton.textContent = "❚❚";
