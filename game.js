@@ -3,10 +3,119 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 // UI要素の取得
+const startScreen = document.getElementById("startScreen");
+const startButton = document.getElementById("startButton");
 const gameOverScreen = document.getElementById("gameOverScreen");
 const gameOverTitle = document.getElementById("gameOverTitle");
 const finalScoreElement = document.getElementById("finalScore");
 const restartButton = document.getElementById("restartButton");
+
+// Web Audio APIの初期化
+let audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+
+// 効果音生成関数群
+function playShootSound() {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.08);
+
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
+  } catch (e) {
+    // Audio context errors ignored
+  }
+}
+
+function playExplosionSound() {
+  if (!audioCtx) return;
+  try {
+    // ホワイトノイズによる爆発音
+    const bufferSize = audioCtx.sampleRate * 0.3;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(800, audioCtx.currentTime);
+    filter.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.3);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    noise.start();
+    noise.stop(audioCtx.currentTime + 0.3);
+  } catch (e) {}
+}
+
+function playHitSound() {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.25);
+
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.25);
+  } catch (e) {}
+}
+
+function playClearSound() {
+  if (!audioCtx) return;
+  try {
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    notes.forEach((freq, index) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + index * 0.12);
+
+      gain.gain.setValueAtTime(0, audioCtx.currentTime + index * 0.12);
+      gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + index * 0.12 + 0.02);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + index * 0.12 + 0.35);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + index * 0.12);
+      osc.stop(audioCtx.currentTime + index * 0.12 + 0.35);
+    });
+  } catch (e) {}
+}
 
 // キー入力の状態管理
 const keys = {
@@ -25,14 +134,17 @@ const keys = {
 window.addEventListener("keydown", (e) => {
   if (e.code in keys) {
     // ゲームオーバーまたはゲームクリア時はスペースキーでリスタートできるようにする
-    if (e.code === "Space" && (isGameOver || isGameClear)) {
+    if (e.code === "Space" && (isGameOver || isGameClear || !gameStarted)) {
       e.preventDefault();
-      restartGame();
+      if (!gameStarted) {
+        startGame();
+      } else {
+        restartGame();
+      }
       return;
     }
 
     keys[e.code] = true;
-    // スペースキーや矢印キーでの画面スクロールを防止
     if (e.code === "Space" || e.code.startsWith("Arrow")) {
       e.preventDefault();
     }
@@ -46,12 +158,18 @@ window.addEventListener("keyup", (e) => {
   }
 });
 
+// スタートボタンクリックイベント
+startButton.addEventListener("click", () => {
+  startGame();
+});
+
 // リスタートボタンクリックイベント
 restartButton.addEventListener("click", () => {
   restartGame();
 });
 
 // ゲームの状態管理変数
+let gameStarted = false;
 let score = 0;
 let isGameOver = false;
 let isGameClear = false;
@@ -59,7 +177,7 @@ let gameStartTime = 0; // ゲーム開始時刻（難易度スケーリング用
 
 // ボス戦関連定数・変数
 const BOSS_SPAWN_SCORE = 1000;
-let boss = null; // ボスが存在しない場合は null
+let boss = null;
 
 // 自機（プレイヤー）オブジェクトの初期設定
 const player = {
@@ -70,9 +188,26 @@ const player = {
   speed: 5,
 };
 
-// 弾と敵の配列
+// 弾・敵・パーティクル・背景の星の配列
 let bullets = [];
 let enemies = [];
+let particles = [];
+let stars = [];
+
+// 星空背景の初期化
+function initStars() {
+  stars = [];
+  for (let i = 0; i < 60; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      size: Math.random() * 2 + 1,
+      speed: Math.random() * 1.5 + 0.5,
+      alpha: Math.random() * 0.7 + 0.3
+    });
+  }
+}
+initStars();
 
 // 弾の発射間隔管理（ミリ秒）
 const SHOOT_INTERVAL = 150;
@@ -83,9 +218,20 @@ const INITIAL_ENEMY_SPAWN_INTERVAL = 1000;
 let lastEnemySpawnTime = 0;
 
 /**
+ * ゲームを開始する（初回）
+ */
+function startGame() {
+  initAudio();
+  gameStarted = true;
+  startScreen.classList.add("hidden");
+  restartGame();
+}
+
+/**
  * ゲームを初期状態にリセットして再開する
  */
 function restartGame() {
+  initAudio();
   score = 0;
   isGameOver = false;
   isGameClear = false;
@@ -94,10 +240,31 @@ function restartGame() {
   player.y = canvas.height - 60;
   bullets = [];
   enemies = [];
+  particles = [];
   lastShootTime = 0;
   lastEnemySpawnTime = 0;
   gameStartTime = performance.now();
   gameOverScreen.classList.add("hidden");
+}
+
+/**
+ * 爆発パーティクルを生成する
+ */
+function createExplosion(x, y, color = "#ff4757", count = 15) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 3 + 1;
+    particles.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: Math.random() * 3 + 2,
+      color: color,
+      alpha: 1.0,
+      decay: Math.random() * 0.03 + 0.02
+    });
+  }
 }
 
 /**
@@ -112,28 +279,26 @@ function shootBullet(currentTime) {
       height: 12,
       speed: 8,
     });
+    playShootSound();
     lastShootTime = currentTime;
   }
 }
 
 /**
  * 現在のスコアや経過時間に基づいた動的な敵の出現間隔を計算する
- * スコアが上がる、または時間が経過するほど間隔が短くなり（敵が頻繁に出現）、ボス出現スコア付近で最小化する
  */
 function getCurrentSpawnInterval(currentTime) {
   const elapsedSeconds = (currentTime - gameStartTime) / 1000;
-  // スコアと経過時間による進行度（0.0 〜 1.0 の間で徐々に上昇）
   const progressByScore = Math.min(score / BOSS_SPAWN_SCORE, 1.0);
-  const progressByTime = Math.min(elapsedSeconds / 45, 1.0); // 45秒で最大進行
+  const progressByTime = Math.min(elapsedSeconds / 45, 1.0);
   const progress = Math.max(progressByScore, progressByTime);
 
-  // 初期値 1000ms から最小 350ms まで短縮
   const minInterval = 350;
   return INITIAL_ENEMY_SPAWN_INTERVAL - (INITIAL_ENEMY_SPAWN_INTERVAL - minInterval) * progress;
 }
 
 /**
- * 敵を生成する（ボス出現スコア未満のときのみ）
+ * 敵を生成する
  */
 function spawnEnemy(currentTime) {
   if (score >= BOSS_SPAWN_SCORE || boss !== null) return;
@@ -145,13 +310,11 @@ function spawnEnemy(currentTime) {
     const enemyHeight = 30;
     const x = Math.random() * (canvas.width - enemyWidth);
 
-    // 難易度スケーリングに応じた敵の速度計算（スコアや経過時間でスピードアップ）
     const elapsedSeconds = (currentTime - gameStartTime) / 1000;
     const progressByScore = Math.min(score / BOSS_SPAWN_SCORE, 1.0);
     const progressByTime = Math.min(elapsedSeconds / 45, 1.0);
     const progress = Math.max(progressByScore, progressByTime);
 
-    // 基本スピード (2 ~ 3.5) に進行度に応じたボーナス速度 (+0 ~ +3.0) を加算
     const baseSpeed = 2 + Math.random() * 1.5;
     const speedBonus = progress * 3.0;
 
@@ -177,12 +340,12 @@ function spawnBoss() {
       width: 100,
       height: 50,
       speed: 2,
-      direction: 1, // 1: 右向き, -1: 左向き
+      direction: 1,
       hp: 30,
       maxHp: 30,
     };
-    // 既存の通常の敵をクリアする
     enemies = [];
+    playClearSound(); // ボス登場の盛り上げに流用
   }
 }
 
@@ -203,6 +366,8 @@ function checkCollision(rect1, rect2) {
  */
 function triggerGameOver() {
   isGameOver = true;
+  playHitSound();
+  createExplosion(player.x + player.width / 2, player.y + player.height / 2, "#66fcf1", 30);
   gameOverTitle.textContent = "GAME OVER";
   gameOverTitle.style.color = "#ff4757";
   finalScoreElement.textContent = score;
@@ -214,6 +379,8 @@ function triggerGameOver() {
  */
 function triggerGameClear() {
   isGameClear = true;
+  playClearSound();
+  createExplosion(canvas.width / 2, 75, "#c56cf0", 50);
   gameOverTitle.textContent = "STAGE CLEAR!";
   gameOverTitle.style.color = "#66fcf1";
   finalScoreElement.textContent = score;
@@ -224,7 +391,27 @@ function triggerGameClear() {
  * ゲーム状態の更新
  */
 function update(currentTime) {
-  if (isGameOver || isGameClear) return;
+  if (!gameStarted || isGameOver || isGameClear) return;
+
+  // 星空背景のスクロール更新
+  for (const star of stars) {
+    star.y += star.speed;
+    if (star.y > canvas.height) {
+      star.y = 0;
+      star.x = Math.random() * canvas.width;
+    }
+  }
+
+  // パーティクルの更新
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.alpha -= p.decay;
+    if (p.alpha <= 0) {
+      particles.splice(i, 1);
+    }
+  }
 
   // プレイヤー移動（左右）
   if (keys.ArrowLeft || keys.KeyA) {
@@ -241,7 +428,7 @@ function update(currentTime) {
     player.y += player.speed;
   }
 
-  // 画面外に出ないようにクランプ
+  // 画面外クランプ
   player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
   player.y = Math.max(0, Math.min(canvas.height - player.height, player.y));
 
@@ -274,7 +461,7 @@ function update(currentTime) {
     }
   }
 
-  // ボスの移動処理（左右往復）
+  // ボスの移動処理
   if (boss !== null) {
     boss.x += boss.speed * boss.direction;
     if (boss.x <= 10) {
@@ -294,6 +481,8 @@ function update(currentTime) {
     for (let j = bullets.length - 1; j >= 0; j--) {
       const bullet = bullets[j];
       if (checkCollision(enemy, bullet)) {
+        createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, "#ff4757", 12);
+        playExplosionSound();
         enemies.splice(i, 1);
         bullets.splice(j, 1);
         score += 100;
@@ -303,12 +492,11 @@ function update(currentTime) {
     }
 
     if (enemyDestroyed) {
-      // 撃破時にボス出現スコアに達したか確認
       spawnBoss();
       continue;
     }
 
-    // プレイヤーと通常敵の当たり判定処理
+    // プレイヤーと通常敵の当たり判定
     if (checkCollision(player, enemy)) {
       triggerGameOver();
       return;
@@ -322,10 +510,13 @@ function update(currentTime) {
       if (checkCollision(boss, bullet)) {
         bullets.splice(j, 1);
         boss.hp -= 1;
-        score += 20; // ボスにダメージを与えた時のスコア加算
+        score += 20;
+        playHitSound();
+        createExplosion(bullet.x, bullet.y, "#ffdd59", 5);
 
         if (boss.hp <= 0) {
-          score += 500; // ボス撃破ボーナス
+          createExplosion(boss.x + boss.width / 2, boss.y + boss.height / 2, "#c56cf0", 40);
+          score += 500;
           boss = null;
           triggerGameClear();
           return;
@@ -333,7 +524,7 @@ function update(currentTime) {
       }
     }
 
-    // プレイヤーとボスの当たり判定処理
+    // プレイヤーとボスの当たり判定
     if (checkCollision(player, boss)) {
       triggerGameOver();
       return;
@@ -349,26 +540,45 @@ function draw() {
   ctx.fillStyle = "#0b0c10";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 自機（プレイヤー）の描画: 三角形
-  ctx.fillStyle = "#66fcf1";
-  ctx.beginPath();
-  ctx.moveTo(player.x + player.width / 2, player.y);
-  ctx.lineTo(player.x, player.y + player.height);
-  ctx.lineTo(player.x + player.width, player.y + player.height);
-  ctx.closePath();
-  ctx.fill();
+  // 星空背景の描画
+  for (const star of stars) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+    ctx.fillRect(star.x, star.y, star.size, star.size);
+  }
 
-  // コックピットのワンポイント装飾
-  ctx.fillStyle = "#1f2833";
-  ctx.beginPath();
-  ctx.arc(
-    player.x + player.width / 2,
-    player.y + player.height * 0.6,
-    player.width * 0.15,
-    0,
-    Math.PI * 2
-  );
-  ctx.fill();
+  // パーティクルの描画
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  if (gameStarted) {
+    // 自機（プレイヤー）の描画: 三角形
+    ctx.fillStyle = "#66fcf1";
+    ctx.beginPath();
+    ctx.moveTo(player.x + player.width / 2, player.y);
+    ctx.lineTo(player.x, player.y + player.height);
+    ctx.lineTo(player.x + player.width, player.y + player.height);
+    ctx.closePath();
+    ctx.fill();
+
+    // コックピットのワンポイント装飾
+    ctx.fillStyle = "#1f2833";
+    ctx.beginPath();
+    ctx.arc(
+      player.x + player.width / 2,
+      player.y + player.height * 0.6,
+      player.width * 0.15,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+  }
 
   // 弾の描画
   ctx.fillStyle = "#ffdd59";
@@ -392,7 +602,6 @@ function draw() {
     ctx.fillStyle = "#c56cf0";
     ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
 
-    // ボスのコックピット／コア装飾
     ctx.fillStyle = "#ff4757";
     ctx.beginPath();
     ctx.arc(
@@ -447,4 +656,3 @@ gameStartTime = performance.now();
 
 // ゲーム開始
 requestAnimationFrame(gameLoop);
-

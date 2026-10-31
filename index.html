@@ -10,6 +10,13 @@
   <div class="game-container">
     <div class="game-wrapper">
       <canvas id="gameCanvas" width="480" height="640"></canvas>
+      <!-- 初回スタート画面オーバーレイ（音声有効化のため） -->
+      <div id="startScreen" class="game-over-screen">
+        <h2 style="color: #66fcf1;">SPACE SHOOTER</h2>
+        <p>宇宙を防衛せよ！</p>
+        <button id="startButton">ゲームスタート</button>
+        <p class="restart-hint">[スペースキー] または [クリック] で開始</p>
+      </div>
       <!-- ゲームオーバー画面オーバーレイ -->
       <div id="gameOverScreen" class="game-over-screen hidden">
         <h2 id="gameOverTitle">GAME OVER</h2>
