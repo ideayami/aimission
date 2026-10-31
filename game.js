@@ -5,10 +5,60 @@ const ctx = canvas.getContext("2d");
 // UI要素の取得
 const startScreen = document.getElementById("startScreen");
 const startButton = document.getElementById("startButton");
+const startHighScoreElement = document.getElementById("startHighScore");
 const gameOverScreen = document.getElementById("gameOverScreen");
 const gameOverTitle = document.getElementById("gameOverTitle");
 const finalScoreElement = document.getElementById("finalScore");
+const highScoreElement = document.getElementById("highScore");
 const restartButton = document.getElementById("restartButton");
+
+// ローカルストレージキー定義
+const HIGH_SCORE_STORAGE_KEY = "space_shooter_high_score";
+
+/**
+ * ハイスコアをローカルストレージから読み込む
+ */
+function loadHighScore() {
+  try {
+    const saved = localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
+    return saved ? parseInt(saved, 10) || 0 : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+/**
+ * ハイスコアをローカルストレージに保存する
+ */
+function saveHighScore(newScore) {
+  try {
+    localStorage.setItem(HIGH_SCORE_STORAGE_KEY, newScore.toString());
+  } catch (e) {
+    // localStorageへのアクセスエラー対策
+  }
+}
+
+// ハイスコアの初期化
+let highScore = loadHighScore();
+if (startHighScoreElement) {
+  startHighScoreElement.textContent = highScore;
+}
+
+/**
+ * スコアがハイスコアを上回っていた場合に更新して保存する
+ */
+function updateHighScore() {
+  if (score > highScore) {
+    highScore = score;
+    saveHighScore(highScore);
+  }
+  if (highScoreElement) {
+    highScoreElement.textContent = highScore;
+  }
+  if (startHighScoreElement) {
+    startHighScoreElement.textContent = highScore;
+  }
+}
 
 // Web Audio APIの初期化
 let audioCtx = null;
@@ -236,7 +286,7 @@ function restartGame() {
   isGameOver = false;
   isGameClear = false;
   boss = null;
-  player.x = canvas.width / 2 - 16;
+  player.x = canvas.width / 2 - 16,
   player.y = canvas.height - 60;
   bullets = [];
   enemies = [];
@@ -368,6 +418,7 @@ function triggerGameOver() {
   isGameOver = true;
   playHitSound();
   createExplosion(player.x + player.width / 2, player.y + player.height / 2, "#66fcf1", 30);
+  updateHighScore();
   gameOverTitle.textContent = "GAME OVER";
   gameOverTitle.style.color = "#ff4757";
   finalScoreElement.textContent = score;
@@ -381,6 +432,7 @@ function triggerGameClear() {
   isGameClear = true;
   playClearSound();
   createExplosion(canvas.width / 2, 75, "#c56cf0", 50);
+  updateHighScore();
   gameOverTitle.textContent = "STAGE CLEAR!";
   gameOverTitle.style.color = "#66fcf1";
   finalScoreElement.textContent = score;
@@ -640,6 +692,12 @@ function draw() {
   ctx.font = "bold 16px sans-serif";
   ctx.textAlign = "left";
   ctx.fillText(`SCORE: ${score}`, 16, 30);
+
+  // ハイスコア表示（UI右上）
+  const displayHighScore = Math.max(score, highScore);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#ffdd59";
+  ctx.fillText(`HIGH SCORE: ${displayHighScore}`, canvas.width - 16, 30);
 }
 
 /**
