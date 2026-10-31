@@ -55,6 +55,7 @@ restartButton.addEventListener("click", () => {
 let score = 0;
 let isGameOver = false;
 let isGameClear = false;
+let gameStartTime = 0; // ゲーム開始時刻（難易度スケーリング用）
 
 // ボス戦関連定数・変数
 const BOSS_SPAWN_SCORE = 1000;
@@ -77,8 +78,8 @@ let enemies = [];
 const SHOOT_INTERVAL = 150;
 let lastShootTime = 0;
 
-// 敵の出現間隔管理（ミリ秒）
-const ENEMY_SPAWN_INTERVAL = 1000;
+// 敵の出現間隔管理（初期値・ミリ秒）
+const INITIAL_ENEMY_SPAWN_INTERVAL = 1000;
 let lastEnemySpawnTime = 0;
 
 /**
@@ -95,6 +96,7 @@ function restartGame() {
   enemies = [];
   lastShootTime = 0;
   lastEnemySpawnTime = 0;
+  gameStartTime = performance.now();
   gameOverScreen.classList.add("hidden");
 }
 
@@ -115,21 +117,50 @@ function shootBullet(currentTime) {
 }
 
 /**
+ * 現在のスコアや経過時間に基づいた動的な敵の出現間隔を計算する
+ * スコアが上がる、または時間が経過するほど間隔が短くなり（敵が頻繁に出現）、ボス出現スコア付近で最小化する
+ */
+function getCurrentSpawnInterval(currentTime) {
+  const elapsedSeconds = (currentTime - gameStartTime) / 1000;
+  // スコアと経過時間による進行度（0.0 〜 1.0 の間で徐々に上昇）
+  const progressByScore = Math.min(score / BOSS_SPAWN_SCORE, 1.0);
+  const progressByTime = Math.min(elapsedSeconds / 45, 1.0); // 45秒で最大進行
+  const progress = Math.max(progressByScore, progressByTime);
+
+  // 初期値 1000ms から最小 350ms まで短縮
+  const minInterval = 350;
+  return INITIAL_ENEMY_SPAWN_INTERVAL - (INITIAL_ENEMY_SPAWN_INTERVAL - minInterval) * progress;
+}
+
+/**
  * 敵を生成する（ボス出現スコア未満のときのみ）
  */
 function spawnEnemy(currentTime) {
   if (score >= BOSS_SPAWN_SCORE || boss !== null) return;
 
-  if (currentTime - lastEnemySpawnTime >= ENEMY_SPAWN_INTERVAL) {
+  const currentSpawnInterval = getCurrentSpawnInterval(currentTime);
+
+  if (currentTime - lastEnemySpawnTime >= currentSpawnInterval) {
     const enemyWidth = 30;
     const enemyHeight = 30;
     const x = Math.random() * (canvas.width - enemyWidth);
+
+    // 難易度スケーリングに応じた敵の速度計算（スコアや経過時間でスピードアップ）
+    const elapsedSeconds = (currentTime - gameStartTime) / 1000;
+    const progressByScore = Math.min(score / BOSS_SPAWN_SCORE, 1.0);
+    const progressByTime = Math.min(elapsedSeconds / 45, 1.0);
+    const progress = Math.max(progressByScore, progressByTime);
+
+    // 基本スピード (2 ~ 3.5) に進行度に応じたボーナス速度 (+0 ~ +3.0) を加算
+    const baseSpeed = 2 + Math.random() * 1.5;
+    const speedBonus = progress * 3.0;
+
     enemies.push({
       x: x,
       y: -enemyHeight,
       width: enemyWidth,
       height: enemyHeight,
-      speed: 2 + Math.random() * 1.5,
+      speed: baseSpeed + speedBonus,
     });
     lastEnemySpawnTime = currentTime;
   }
@@ -411,5 +442,9 @@ function gameLoop(currentTime) {
   requestAnimationFrame(gameLoop);
 }
 
+// ゲーム開始時のタイムスタンプ初期化
+gameStartTime = performance.now();
+
 // ゲーム開始
 requestAnimationFrame(gameLoop);
+
