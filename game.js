@@ -11,6 +11,9 @@ const gameOverTitle = document.getElementById("gameOverTitle");
 const finalScoreElement = document.getElementById("finalScore");
 const highScoreElement = document.getElementById("highScore");
 const restartButton = document.getElementById("restartButton");
+const pauseButton = document.getElementById("pauseButton");
+const pauseScreen = document.getElementById("pauseScreen");
+const resumeButton = document.getElementById("resumeButton");
 
 // ローカルストレージキー定義
 const HIGH_SCORE_STORAGE_KEY = "space_shooter_high_score";
@@ -111,7 +114,7 @@ function playExplosionSound() {
     const filter = audioCtx.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.setValueAtTime(800, audioCtx.currentTime);
-    filter.frequency.linearRampToValueAtTime(50, audioCtx.currentTime + 0.3);
+    filter.linearRampToValueAtTime(50, audioCtx.currentTime + 0.3);
 
     const gain = audioCtx.createGain();
     gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
@@ -133,10 +136,10 @@ function playHitSound() {
     const gain = audioCtx.createGain();
     osc.type = "square";
     osc.frequency.setValueAtTime(120, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.25);
+    osc.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.25);
 
     gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+    gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
 
     osc.connect(gain);
     gain.connect(audioCtx.destination);
@@ -180,46 +183,10 @@ const keys = {
   Space: false,
 };
 
-// キー押下イベント
-window.addEventListener("keydown", (e) => {
-  if (e.code in keys) {
-    // ゲームオーバーまたはゲームクリア時はスペースキーでリスタートできるようにする
-    if (e.code === "Space" && (isGameOver || isGameClear || !gameStarted)) {
-      e.preventDefault();
-      if (!gameStarted) {
-        startGame();
-      } else {
-        restartGame();
-      }
-      return;
-    }
-
-    keys[e.code] = true;
-    if (e.code === "Space" || e.code.startsWith("Arrow")) {
-      e.preventDefault();
-    }
-  }
-});
-
-// キー解放イベント
-window.addEventListener("keyup", (e) => {
-  if (e.code in keys) {
-    keys[e.code] = false;
-  }
-});
-
-// スタートボタンクリックイベント
-startButton.addEventListener("click", () => {
-  startGame();
-});
-
-// リスタートボタンクリックイベント
-restartButton.addEventListener("click", () => {
-  restartGame();
-});
-
 // ゲームの状態管理変数
 let gameStarted = false;
+let isPaused = false;
+let pauseStartTime = 0;
 let score = 0;
 let isGameOver = false;
 let isGameClear = false;
@@ -268,11 +235,103 @@ const INITIAL_ENEMY_SPAWN_INTERVAL = 1000;
 let lastEnemySpawnTime = 0;
 
 /**
+ * ポーズ（一時停止）のトグル切り替え
+ */
+function togglePause() {
+  // 未開始、ゲームオーバー、ゲームクリア時は何もしない
+  if (!gameStarted || isGameOver || isGameClear) return;
+
+  isPaused = !isPaused;
+
+  if (isPaused) {
+    pauseStartTime = performance.now();
+    if (pauseScreen) pauseScreen.classList.remove("hidden");
+    if (pauseButton) pauseButton.textContent = "▶";
+  } else {
+    // ポーズしていた期間を各タイムスタンプに加算し、再開直後に急激な生成・発射が起きるのを防ぐ
+    const pauseDuration = performance.now() - pauseStartTime;
+    gameStartTime += pauseDuration;
+    lastShootTime += pauseDuration;
+    lastEnemySpawnTime += pauseDuration;
+
+    if (pauseScreen) pauseScreen.classList.add("hidden");
+    if (pauseButton) pauseButton.textContent = "❚❚";
+  }
+}
+
+// キー押下イベント
+window.addEventListener("keydown", (e) => {
+  // Pキーでポーズ切り替え
+  if (e.code === "KeyP") {
+    e.preventDefault();
+    togglePause();
+    return;
+  }
+
+  // ポーズ中は移動・攻撃キーなどの入力を無効化
+  if (isPaused) return;
+
+  if (e.code in keys) {
+    // ゲームオーバーまたはゲームクリア時はスペースキーでリスタートできるようにする
+    if (e.code === "Space" && (isGameOver || isGameClear || !gameStarted)) {
+      e.preventDefault();
+      if (!gameStarted) {
+        startGame();
+      } else {
+        restartGame();
+      }
+      return;
+    }
+
+    keys[e.code] = true;
+    if (e.code === "Space" || e.code.startsWith("Arrow")) {
+      e.preventDefault();
+    }
+  }
+});
+
+// キー解放イベント
+window.addEventListener("keyup", (e) => {
+  if (e.code in keys) {
+    keys[e.code] = false;
+  }
+});
+
+// スタートボタンクリックイベント
+startButton.addEventListener("click", () => {
+  startGame();
+});
+
+// リスタートボタンクリックイベント
+restartButton.addEventListener("click", () => {
+  restartGame();
+});
+
+// ポーズボタンクリックイベント
+if (pauseButton) {
+  pauseButton.addEventListener("click", () => {
+    togglePause();
+  });
+}
+
+// ポーズ再開ボタンクリックイベント
+if (resumeButton) {
+  resumeButton.addEventListener("click", () => {
+    if (isPaused) {
+      togglePause();
+    }
+  });
+}
+
+/**
  * ゲームを開始する（初回）
  */
 function startGame() {
   initAudio();
   gameStarted = true;
+  isPaused = false;
+  if (pauseScreen) pauseScreen.classList.add("hidden");
+  if (pauseButton) pauseButton.textContent = "❚❚";
   startScreen.classList.add("hidden");
   restartGame();
 }
@@ -285,8 +344,9 @@ function restartGame() {
   score = 0;
   isGameOver = false;
   isGameClear = false;
+  isPaused = false;
   boss = null;
-  player.x = canvas.width / 2 - 16,
+  player.x = canvas.width / 2 - 16;
   player.y = canvas.height - 60;
   bullets = [];
   enemies = [];
@@ -295,6 +355,8 @@ function restartGame() {
   lastEnemySpawnTime = 0;
   gameStartTime = performance.now();
   gameOverScreen.classList.add("hidden");
+  if (pauseScreen) pauseScreen.classList.add("hidden");
+  if (pauseButton) pauseButton.textContent = "❚❚";
 }
 
 /**
@@ -443,7 +505,7 @@ function triggerGameClear() {
  * ゲーム状態の更新
  */
 function update(currentTime) {
-  if (!gameStarted || isGameOver || isGameClear) return;
+  if (!gameStarted || isGameOver || isGameClear || isPaused) return;
 
   // 星空背景のスクロール更新
   for (const star of stars) {
@@ -697,7 +759,25 @@ function draw() {
   const displayHighScore = Math.max(score, highScore);
   ctx.textAlign = "right";
   ctx.fillStyle = "#ffdd59";
-  ctx.fillText(`HIGH SCORE: ${displayHighScore}`, canvas.width - 16, 30);
+  ctx.fillText(`HIGH SCORE: ${displayHighScore}`, canvas.width - 60, 30);
+
+  // ポーズ中のキャンバス中央テキスト表示
+  if (isPaused) {
+    ctx.save();
+    ctx.fillStyle = "rgba(11, 12, 16, 0.6)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#66fcf1";
+    ctx.font = "bold 40px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("PAUSED", canvas.width / 2, canvas.height / 2 - 20);
+
+    ctx.fillStyle = "#c5c6c7";
+    ctx.font = "14px sans-serif";
+    ctx.fillText("Pキー または ボタンを押して再開", canvas.width / 2, canvas.height / 2 + 25);
+    ctx.restore();
+  }
 }
 
 /**

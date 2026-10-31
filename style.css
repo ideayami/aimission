@@ -38,7 +38,37 @@ body {
   display: block;
 }
 
-/* ゲームオーバー画面オーバーレイ */
+/* 一時停止ボタン */
+.pause-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  background-color: rgba(31, 40, 51, 0.85);
+  border: 1px solid #45a29e;
+  border-radius: 4px;
+  color: #66fcf1;
+  font-size: 14px;
+  cursor: pointer;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background-color 0.2s, transform 0.1s, border-color 0.2s;
+}
+
+.pause-button:hover {
+  background-color: #45a29e;
+  color: #0b0c10;
+  transform: scale(1.05);
+}
+
+.pause-button:active {
+  transform: scale(0.95);
+}
+
+/* ゲームオーバー・スタート・ポーズ画面オーバーレイ */
 .game-over-screen {
   position: absolute;
   top: 0;
@@ -76,7 +106,7 @@ body {
   color: #45a29e !important;
 }
 
-#restartButton, #startButton {
+#restartButton, #startButton, #resumeButton {
   background-color: #66fcf1;
   color: #0b0c10;
   border: none;
@@ -88,12 +118,12 @@ body {
   transition: background-color 0.2s, transform 0.1s;
 }
 
-#restartButton:hover, #startButton:hover {
+#restartButton:hover, #startButton:hover, #resumeButton:hover {
   background-color: #45a29e;
   transform: scale(1.05);
 }
 
-#restartButton:active, #startButton:active {
+#restartButton:active, #startButton:active, #resumeButton:active {
   transform: scale(0.98);
 }
 
