@@ -23,3 +23,6 @@
 - タスク: 見た目・効果音などの仕上げ、README整備
 - 結果: 承認
 - 変更: README.md, game.js, index.html, style.css
+
+## Round 6
+PM: DONE（完了宣言）
