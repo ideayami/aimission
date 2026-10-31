@@ -102,6 +102,28 @@ function playShootSound() {
   }
 }
 
+function playPowerUpSound() {
+  if (!audioCtx) return;
+  try {
+    const notes = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
+    notes.forEach((freq, index) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, audioCtx.currentTime + index * 0.07);
+
+      gain.gain.setValueAtTime(0, audioCtx.currentTime + index * 0.07);
+      gain.gain.linearRampToValueAtTime(0.18, audioCtx.currentTime + index * 0.07 + 0.02);
+      gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + index * 0.07 + 0.2);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + index * 0.07);
+      osc.stop(audioCtx.currentTime + index * 0.07 + 0.2);
+    });
+  } catch (e) {}
+}
+
 function playExplosionSound() {
   if (!audioCtx) return;
   try {
@@ -123,7 +145,7 @@ function playExplosionSound() {
 
     const gain = audioCtx.createGain();
     gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+    gain.gain.linearRampToTime(0.01, audioCtx.currentTime + 0.3);
 
     noise.connect(filter);
     filter.connect(gain);
@@ -196,6 +218,11 @@ let score = 0;
 let isGameOver = false;
 let isGameClear = false;
 let gameStartTime = 0; // ゲーム開始時刻（難易度スケーリング用）
+
+// パワーアップ関連定数・変数
+const POWER_UP_SCORE = 500;
+let hasPowerUpTriggered = false;
+let powerUpBannerTimer = 0; // パワーアップ演出用タイマー
 
 // ボス戦関連定数・変数
 const BOSS_SPAWN_SCORE = 1000;
@@ -400,6 +427,8 @@ function restartGame() {
   isGameOver = false;
   isGameClear = false;
   isPaused = false;
+  hasPowerUpTriggered = false;
+  powerUpBannerTimer = 0;
   boss = null;
   player.x = canvas.width / 2 - 16;
   player.y = canvas.height - 60;
@@ -435,17 +464,70 @@ function createExplosion(x, y, color = "#ff4757", count = 15) {
 }
 
 /**
+ * スコア加算とパワーアップ判定
+ */
+function addScore(points) {
+  score += points;
+  if (score >= POWER_UP_SCORE && !hasPowerUpTriggered) {
+    hasPowerUpTriggered = true;
+    powerUpBannerTimer = 120; // 約2秒間バナー表示
+    playPowerUpSound();
+    createExplosion(player.x + player.width / 2, player.y + player.height / 2, "#00ffcc", 25);
+  }
+}
+
+/**
  * 弾を発射する
  */
 function shootBullet(currentTime) {
   if (currentTime - lastShootTime >= SHOOT_INTERVAL) {
-    bullets.push({
-      x: player.x + player.width / 2 - 3,
-      y: player.y - 10,
-      width: 6,
-      height: 12,
-      speed: 8,
-    });
+    const isPoweredUp = score >= POWER_UP_SCORE;
+
+    if (isPoweredUp) {
+      // 3方向ワイドショット
+      // 中央弾
+      bullets.push({
+        x: player.x + player.width / 2 - 3,
+        y: player.y - 10,
+        width: 6,
+        height: 12,
+        vx: 0,
+        vy: 8,
+        color: "#00ffcc"
+      });
+      // 左斜め弾
+      bullets.push({
+        x: player.x + player.width / 2 - 7,
+        y: player.y - 8,
+        width: 6,
+        height: 10,
+        vx: -2.2,
+        vy: 7.5,
+        color: "#00ffcc"
+      });
+      // 右斜め弾
+      bullets.push({
+        x: player.x + player.width / 2 + 1,
+        y: player.y - 8,
+        width: 6,
+        height: 10,
+        vx: 2.2,
+        vy: 7.5,
+        color: "#00ffcc"
+      });
+    } else {
+      // 通常単発ショット
+      bullets.push({
+        x: player.x + player.width / 2 - 3,
+        y: player.y - 10,
+        width: 6,
+        height: 12,
+        vx: 0,
+        vy: 8,
+        color: "#ffdd59"
+      });
+    }
+
     playShootSound();
     lastShootTime = currentTime;
   }
@@ -562,6 +644,11 @@ function triggerGameClear() {
 function update(currentTime) {
   if (!gameStarted || isGameOver || isGameClear || isPaused) return;
 
+  // パワーアップバナータイマーの更新
+  if (powerUpBannerTimer > 0) {
+    powerUpBannerTimer--;
+  }
+
   // 星空背景のスクロール更新
   for (const star of stars) {
     star.y += star.speed;
@@ -609,8 +696,13 @@ function update(currentTime) {
   // 弾の移動と画面外判定
   for (let i = bullets.length - 1; i >= 0; i--) {
     const bullet = bullets[i];
-    bullet.y -= bullet.speed;
-    if (bullet.y + bullet.height < 0) {
+    bullet.x += bullet.vx || 0;
+    bullet.y -= (bullet.vy !== undefined ? bullet.vy : 8);
+    if (
+      bullet.y + bullet.height < 0 ||
+      bullet.x + bullet.width < 0 ||
+      bullet.x > canvas.width
+    ) {
       bullets.splice(i, 1);
     }
   }
@@ -654,7 +746,7 @@ function update(currentTime) {
         playExplosionSound();
         enemies.splice(i, 1);
         bullets.splice(j, 1);
-        score += 100;
+        addScore(100);
         enemyDestroyed = true;
         break;
       }
@@ -679,13 +771,13 @@ function update(currentTime) {
       if (checkCollision(boss, bullet)) {
         bullets.splice(j, 1);
         boss.hp -= 1;
-        score += 20;
+        addScore(20);
         playHitSound();
         createExplosion(bullet.x, bullet.y, "#ffdd59", 5);
 
         if (boss.hp <= 0) {
           createExplosion(boss.x + boss.width / 2, boss.y + boss.height / 2, "#c56cf0", 40);
-          score += 500;
+          addScore(500);
           boss = null;
           triggerGameClear();
           return;
@@ -728,7 +820,7 @@ function draw() {
 
   if (gameStarted) {
     // 自機（プレイヤー）の描画: 三角形
-    ctx.fillStyle = "#66fcf1";
+    ctx.fillStyle = score >= POWER_UP_SCORE ? "#00ffcc" : "#66fcf1";
     ctx.beginPath();
     ctx.moveTo(player.x + player.width / 2, player.y);
     ctx.lineTo(player.x, player.y + player.height);
@@ -747,11 +839,18 @@ function draw() {
       Math.PI * 2
     );
     ctx.fill();
+
+    // パワーアップ中のウィング装飾
+    if (score >= POWER_UP_SCORE) {
+      ctx.fillStyle = "#ffdd59";
+      ctx.fillRect(player.x - 2, player.y + player.height - 8, 4, 8);
+      ctx.fillRect(player.x + player.width - 2, player.y + player.height - 8, 4, 8);
+    }
   }
 
   // 弾の描画
-  ctx.fillStyle = "#ffdd59";
   for (const bullet of bullets) {
+    ctx.fillStyle = bullet.color || "#ffdd59";
     ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
   }
 
@@ -810,11 +909,34 @@ function draw() {
   ctx.textAlign = "left";
   ctx.fillText(`SCORE: ${score}`, 16, 30);
 
+  // 武器レベル表示（UI左側サブ）
+  ctx.font = "bold 12px sans-serif";
+  if (score >= POWER_UP_SCORE) {
+    ctx.fillStyle = "#00ffcc";
+    ctx.fillText("WEAPON: 3-WAY", 16, 48);
+  } else {
+    ctx.fillStyle = "#c5c6c7";
+    ctx.fillText(`NEXT LV: ${POWER_UP_SCORE - score}`, 16, 48);
+  }
+
   // ハイスコア表示（UI右上）
   const displayHighScore = Math.max(score, highScore);
   ctx.textAlign = "right";
   ctx.fillStyle = "#ffdd59";
+  ctx.font = "bold 16px sans-serif";
   ctx.fillText(`HIGH SCORE: ${displayHighScore}`, canvas.width - 60, 30);
+
+  // パワーアップ達成時の通知バナー
+  if (powerUpBannerTimer > 0) {
+    ctx.save();
+    const alpha = Math.min(1.0, powerUpBannerTimer / 30);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#00ffcc";
+    ctx.font = "bold 24px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("★ 3-WAY WIDE SHOT UNLOCKED! ★", canvas.width / 2, canvas.height / 2 - 40);
+    ctx.restore();
+  }
 
   // ポーズ中のキャンバス中央テキスト表示
   if (isPaused) {
