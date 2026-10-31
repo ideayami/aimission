@@ -18,3 +18,8 @@
 - タスク: 難易度調整の追加（敵の出現頻度の加速とスピードアップ）
 - 結果: 承認
 - 変更: game.js
+
+## Round 5
+- タスク: 見た目・効果音などの仕上げ、README整備
+- 結果: 承認
+- 変更: README.md, game.js, index.html, style.css
