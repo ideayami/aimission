@@ -2,6 +2,11 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// UI要素の取得
+const gameOverScreen = document.getElementById("gameOverScreen");
+const finalScoreElement = document.getElementById("finalScore");
+const restartButton = document.getElementById("restartButton");
+
 // キー入力の状態管理
 const keys = {
   ArrowLeft: false,
@@ -18,6 +23,13 @@ const keys = {
 // キー押下イベント
 window.addEventListener("keydown", (e) => {
   if (e.code in keys) {
+    // ゲームオーバー時はスペースキーでリスタートできるようにする
+    if (e.code === "Space" && isGameOver) {
+      e.preventDefault();
+      restartGame();
+      return;
+    }
+
     keys[e.code] = true;
     // スペースキーや矢印キーでの画面スクロールを防止
     if (e.code === "Space" || e.code.startsWith("Arrow")) {
@@ -33,7 +45,16 @@ window.addEventListener("keyup", (e) => {
   }
 });
 
-// 自機（プレイヤー）オブジェクト
+// リスタートボタンクリックイベント
+restartButton.addEventListener("click", () => {
+  restartGame();
+});
+
+// ゲームの状態管理変数
+let score = 0;
+let isGameOver = false;
+
+// 自機（プレイヤー）オブジェクトの初期設定
 const player = {
   x: canvas.width / 2 - 16,
   y: canvas.height - 60,
@@ -43,8 +64,8 @@ const player = {
 };
 
 // 弾と敵の配列
-const bullets = [];
-const enemies = [];
+let bullets = [];
+let enemies = [];
 
 // 弾の発射間隔管理（ミリ秒）
 const SHOOT_INTERVAL = 150;
@@ -53,6 +74,21 @@ let lastShootTime = 0;
 // 敵の出現間隔管理（ミリ秒）
 const ENEMY_SPAWN_INTERVAL = 1000;
 let lastEnemySpawnTime = 0;
+
+/**
+ * ゲームを初期状態にリセットして再開する
+ */
+function restartGame() {
+  score = 0;
+  isGameOver = false;
+  player.x = canvas.width / 2 - 16;
+  player.y = canvas.height - 60;
+  bullets = [];
+  enemies = [];
+  lastShootTime = 0;
+  lastEnemySpawnTime = 0;
+  gameOverScreen.classList.add("hidden");
+}
 
 /**
  * 弾を発射する
@@ -102,9 +138,20 @@ function checkCollision(rect1, rect2) {
 }
 
 /**
+ * ゲームオーバー処理
+ */
+function triggerGameOver() {
+  isGameOver = true;
+  finalScoreElement.textContent = score;
+  gameOverScreen.classList.remove("hidden");
+}
+
+/**
  * ゲーム状態の更新
  */
 function update(currentTime) {
+  if (isGameOver) return;
+
   // プレイヤー移動（左右）
   if (keys.ArrowLeft || keys.KeyA) {
     player.x -= player.speed;
@@ -141,26 +188,39 @@ function update(currentTime) {
   // 敵の生成
   spawnEnemy(currentTime);
 
-  // 敵の移動と画面外判定
+  // 敵の移動と画面外判定（敵が画面下部を通過した場合はゲームオーバー）
   for (let i = enemies.length - 1; i >= 0; i--) {
     const enemy = enemies[i];
     enemy.y += enemy.speed;
     if (enemy.y > canvas.height) {
-      enemies.splice(i, 1);
+      triggerGameOver();
+      return;
     }
   }
 
   // 弾と敵の当たり判定処理
   for (let i = enemies.length - 1; i >= 0; i--) {
     const enemy = enemies[i];
+    let enemyDestroyed = false;
+
     for (let j = bullets.length - 1; j >= 0; j--) {
       const bullet = bullets[j];
       if (checkCollision(enemy, bullet)) {
-        // 当たった敵と弾を両方削除
+        // 当たった敵と弾を両方削除し、スコア加算
         enemies.splice(i, 1);
         bullets.splice(j, 1);
+        score += 100;
+        enemyDestroyed = true;
         break;
       }
+    }
+
+    if (enemyDestroyed) continue;
+
+    // プレイヤーと敵の当たり判定処理
+    if (checkCollision(player, enemy)) {
+      triggerGameOver();
+      return;
     }
   }
 }
@@ -210,6 +270,12 @@ function draw() {
     ctx.closePath();
     ctx.fill();
   }
+
+  // スコア表示（UI）
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 16px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(`SCORE: ${score}`, 16, 30);
 }
 
 /**
