@@ -26,3 +26,6 @@
 
 ## Round 6
 PM: DONE（完了宣言）
+
+## Round 7
+PM: DONE（完了宣言）
