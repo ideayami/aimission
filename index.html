@@ -10,6 +10,8 @@
   <div class="game-container">
     <div class="game-wrapper">
       <canvas id="gameCanvas" width="480" height="640"></canvas>
+      <!-- 一時停止トグルボタン -->
+      <button id="pauseButton" class="pause-button" title="一時停止 (P)">❚❚</button>
       <!-- 初回スタート画面オーバーレイ（音声有効化のため） -->
       <div id="startScreen" class="game-over-screen">
         <h2 style="color: #66fcf1;">SPACE SHOOTER</h2>
@@ -17,6 +19,13 @@
         <p>ハイスコア: <span id="startHighScore">0</span></p>
         <button id="startButton">ゲームスタート</button>
         <p class="restart-hint">[スペースキー] または [クリック] で開始</p>
+      </div>
+      <!-- ポーズ画面オーバーレイ -->
+      <div id="pauseScreen" class="game-over-screen hidden">
+        <h2 style="color: #66fcf1;">PAUSED</h2>
+        <p>ゲーム一時停止中</p>
+        <button id="resumeButton">再開する</button>
+        <p class="restart-hint">[Pキー] でも再開</p>
       </div>
       <!-- ゲームオーバー画面オーバーレイ -->
       <div id="gameOverScreen" class="game-over-screen hidden">
@@ -28,7 +37,7 @@
       </div>
     </div>
     <div class="instructions">
-      <p>操作方法: [矢印キー] または [WASD] で移動 / [スペースキー] で弾発射</p>
+      <p>操作方法: [矢印キー] / [WASD] で移動 | [スペースキー] で発射 | [P] で一時停止</p>
     </div>
   </div>
   <script src="game.js"></script>
